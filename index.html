@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TIMEGUESSER</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  [hidden]{ display:none !important; }
+  :root{
+    --bg:#0b0e13; --panel:#151a21; --border:#242c37; --text:#e8ecf1;
+    --muted:#8b95a3; --accent:#ffc247; --accent2:#4dd0a5; --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--text); min-height:100vh;
+    font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; justify-content:center; padding:24px 14px 60px;
+  }
+  #app{width:100%; max-width:860px;}
+  h1{color:var(--accent); font-weight:800; letter-spacing:.35em; font-size:clamp(28px,6vw,44px); text-align:center;}
+  .tag{text-align:center; color:var(--muted); margin:8px 0 26px;}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; margin-top:14px;}
+  label{display:block; font-size:13px; color:var(--muted); margin:12px 0 6px; text-transform:uppercase; letter-spacing:.08em;}
+  select,input[type=text],input[type=number]{
+    background:var(--bg); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:9px 10px; font-size:15px;
+  }
+  #nameInputs{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+  .nameInp{flex:1 1 140px;}
+  button{
+    cursor:pointer; border-radius:10px; border:1px solid var(--border);
+    background:var(--panel); color:var(--text); padding:11px 18px;
+    font-size:15px; font-weight:600; transition:.15s;
+  }
+  button:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#1a1408;}
+  button.primary:hover:not(:disabled){filter:brightness(1.1); color:#1a1408;}
+  .howto{color:var(--muted); font-size:14px; margin-top:18px; padding:0 6px;}
+  .howto b{color:var(--text);}
+  .modes{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px;}
+  .modeSel{padding:12px 6px; text-align:center; line-height:1.3;}
+  .modeSel small{color:var(--muted); font-weight:400; font-size:11.5px;}
+  .modeSel.selected{border-color:var(--accent); color:var(--accent); background:#1c1a12;}
+  .status{color:var(--muted); font-size:14px; margin-top:12px; min-height:20px;}
+  .status.err{color:var(--danger);}
+  .hud{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+  #roundLabel{font-weight:700; letter-spacing:.12em; color:var(--accent2); text-transform:uppercase; font-size:13px;}
+  .chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .chip{background:var(--panel); border:1px solid var(--border); border-radius:999px; padding:3px 12px; font-size:12.5px;}
+  .chip b{color:var(--accent);}
+  .chip.locked{border-color:var(--accent2);}
+  .chip.locked b{color:var(--accent2);}
+  .chip.off{opacity:.45;}
+  #timerWrap{margin-top:14px; display:flex; align-items:center; gap:10px;}
+  #timerTrack{flex:1; height:8px; background:var(--panel); border:1px solid var(--border); border-radius:99px; overflow:hidden;}
+  #timerBar{height:100%; width:100%; background:var(--accent2); transition:width 1s linear;}
+  #timerBar.warn{background:var(--danger);}
+  #timeLeft{font-variant-numeric:tabular-nums; color:var(--muted); font-size:13px; min-width:40px; text-align:right;}
+  .frame{position:relative; margin-top:14px; border-radius:14px; overflow:hidden; background:#000; min-height:260px; display:flex; align-items:center; justify-content:center;}
+  .frame img{display:block; max-width:100%; max-height:52vh; object-fit:contain;}
+  .loader{position:absolute; inset:0; display:flex; flex-direction:column; gap:14px; align-items:center; justify-content:center; background:var(--bg); z-index:3;}
+  .spinner{width:44px; height:44px; border-radius:50%; border:4px solid var(--border); border-top-color:var(--accent); animation:spin .9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loadLabel{color:var(--muted); font-size:14px;}
+  .overlay{
+    position:absolute; inset:0; background:rgba(11,14,19,.96); backdrop-filter:blur(4px);
+    display:flex; flex-direction:column; gap:16px; align-items:center; justify-content:center;
+    text-align:center; padding:20px; z-index:4;
+  }
+  .overlay h3{font-size:22px;}
+  #turnLabel{font-size:18px; font-weight:700; min-height:27px;}
+  #turnLabel span{color:var(--accent);}
+  .yearRow{display:flex; align-items:center; gap:14px; margin:16px 0 6px;}
+  input[type=range]{flex:1; accent-color:var(--accent); height:32px;}
+  #yearInput{width:96px; font-size:22px; font-weight:800; text-align:center; color:var(--accent);}
+  .rangeEnds{display:flex; justify-content:space-between; color:var(--muted); font-size:12px;}
+  .btnRow{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;}
+  .btnRow .primary{flex:1; font-size:17px;}
+  #hintBox{margin-top:12px; color:var(--accent2); font-size:14.5px; min-height:20px;}
+  #lockList{margin-top:12px;}
+  .bigYear{font-size:clamp(30px,6vw,46px); font-weight:800; color:var(--accent);}
+  #revealMeta{color:var(--muted); font-size:14px; margin:8px 0 4px; word-break:break-word;}
+  #revealMeta a{color:var(--accent2);}
+  .rrow{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; padding:10px 4px; border-top:1px solid var(--border); font-size:15px;}
+  .rrow .pts{margin-left:auto; color:var(--accent2); font-weight:800;}
+  .rrow .verdict{color:var(--muted); font-size:13.5px; width:100%;}
+  #leaderLine{margin-top:12px; font-size:14px; color:var(--muted);}
+  #leaderLine b{color:var(--accent);}
+  .mt{margin-top:16px;}
+  .prow{display:flex; gap:12px; align-items:baseline; padding:12px 6px; border-top:1px solid var(--border); font-size:18px;}
+  .prow .medal{font-size:24px; width:34px;}
+  .prow .pts{margin-left:auto; color:var(--accent); font-weight:800; font-size:20px;}
+  .center{text-align:center;}
+  #lobbyCode{
+    font-size:44px; font-weight:800; letter-spacing:.3em; color:var(--accent);
+    font-variant-numeric:tabular-nums; margin:6px 0;
+  }
+  #lobbyPlayers{justify-content:center; margin:14px 0;}
+  @media(max-width:560px){ .modes{grid-template-columns:1fr;} #lobbyCode{font-size:34px;} }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ SETUP ============ -->
+  <section id="setup">
+    <h1>TIMEFRAME</h1>
+    <p class="tag">A random photo appears from the internet. Guess the year it was taken.</p>
+    <div class="card">
+      <label>Game mode</label>
+      <div class="modes">
+        <button class="modeSel selected" data-mode="local">Individual &amp; Play<br><small>one device</small></button>
+        <button class="modeSel" data-mode="host">Host Online<br><small>share a room code</small></button>
+        <button class="modeSel" data-mode="join">Join Online<br><small>enter a code</small></button>
+      </div>
+
+      <div id="localPanel">
+        <label for="playerCount">Players</label>
+        <select id="playerCount"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+        <div id="nameInputs"></div>
+        <label for="roundCount">Rounds</label>
+        <select id="roundCount"><option>3</option><option selected>5</option><option>10</option></select>
+        <div class="btnRow"><button id="startBtn" class="primary">Start game ▶</button></div>
+      </div>
+
+      <div id="hostPanel" hidden>
+        <label for="hostName">Your name</label>
+        <input type="text" id="hostName" maxlength="14" placeholder="Host">
+        <div class="btnRow"><button id="createRoomBtn" class="primary">Create room 🌐</button></div>
+        <div id="hostStatus" class="status"></div>
+      </div>
+
+      <div id="joinPanel" hidden>
+        <label for="joinCode">Room code</label>
+        <input type="text" id="joinCode" maxlength="6" placeholder="ABC12" style="text-transform:uppercase; letter-spacing:.2em; font-weight:700;">
+        <label for="joinName">Your name</label>
+        <input type="text" id="joinName" maxlength="14" placeholder="Guest">
+        <div class="btnRow"><button id="joinBtn" class="primary">Connect 🔗</button></div>
+        <div id="joinStatus" class="status"></div>
+      </div>
+    </div>
+    <div class="howto">
+      <b>How it works:</b> each round a real photograph is pulled at random from Wikimedia Commons.
+      Slide to the year you think it was taken and lock it in.<br>
+      <b>Scoring:</b> exact year = <b>1000 pts</b> · otherwise <b>500 − 5 pts per year off</b> (0 at 100+ years off).<br>
+      <b>Hints:</b> century −100 pts, decade −150 more.<br>
+      <b>Online:</b> the host creates a room, everyone else joins with the code from any device.
+      All players guess the same photo simultaneously within <b>45 seconds</b> — peer-to-peer via WebRTC, no server needed.
+    </div>
+  </section>
+
+  <!-- ============ LOBBY ============ -->
+  <section id="lobby" hidden>
+    <div class="card center">
+      <div style="color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.12em;">Room code</div>
+      <div id="lobbyCode">·····</div>
+      <button id="copyCodeBtn">Copy code</button>
+      <div id="lobbyPlayers" class="chips"></div>
+      <div id="lobbyHostControls" hidden>
+        <label for="lobbyRounds" style="text-align:center;">Rounds</label>
+        <select id="lobbyRounds"><option>3</option><option selected>5</option><option>10</option></select>
+        <div class="btnRow"><button id="lobbyStartBtn" class="primary">Start game ▶</button></div>
+      </div>
+      <div id="lobbyGuestStatus" class="status" hidden>Waiting for the host to start…</div>
+      <div class="btnRow center mt"><button id="leaveBtn">Leave room</button></div>
+    </div>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="game" hidden>
+    <div class="hud">
+      <div id="roundLabel"></div>
+      <div id="scores" class="chips"></div>
+    </div>
+    <div id="timerWrap" hidden>
+      <div id="timerTrack"><div id="timerBar"></div></div>
+      <span id="timeLeft">45s</span>
+    </div>
+    <div class="frame">
+      <img id="photo" alt="Mystery photograph" hidden>
+      <div id="loader" class="loader"><div class="spinner"></div><span class="loadLabel">Finding a photo…</span></div>
+      <div id="errOverlay" class="overlay" hidden>
+        <h3>Couldn't fetch a photo 😕</h3>
+        <button id="retryBtn" class="primary">Try again</button>
+      </div>
+      <div id="passOverlay" class="overlay" hidden>
+        <h3>Pass the device to<br><span id="passName" style="color:var(--accent)"></span></h3>
+        <button id="readyBtn" class="primary">I'm ready</button>
+      </div>
+    </div>
+    <div class="card">
+      <div id="turnLabel"></div>
+      <div class="yearRow">
+        <input type="range" id="slider" min="1826" max="2026" value="1950" step="1" aria-label="Year slider">
+        <input type="number" id="yearInput" min="1826" max="2026" value="1950" aria-label="Year">
+      </div>
+      <div class="rangeEnds"><span>1826</span><span>2026</span></div>
+      <div class="btnRow">
+        <button id="hintBtn" disabled>Hint: century (−100)</button>
+        <button id="guessBtn" class="primary" disabled>Lock in guess</button>
+      </div>
+      <div id="hintBox"></div>
+      <div id="lockList" class="chips" hidden></div>
+    </div>
+  </section>
+
+  <!-- ============ REVEAL ============ -->
+  <section id="reveal" hidden>
+    <div class="frame"><img id="photo2" alt="Mystery photograph"></div>
+    <div class="card">
+      <div class="bigYear" id="revealYear"></div>
+      <div id="revealMeta"></div>
+      <div id="revealRows" class="mt"></div>
+      <div id="leaderLine"></div>
+      <div class="btnRow"><button id="nextBtn" class="primary">Next round →</button></div>
+      <div id="revealWait" class="status center" hidden>Waiting for the host…</div>
+    </div>
+  </section>
+
+  <!-- ============ FINAL ============ -->
+  <section id="final" hidden>
+    <h1 style="letter-spacing:.2em; font-size:32px;">FINAL RESULTS</h1>
+    <div class="card"><div id="podium"></div></div>
+    <div class="btnRow center mt">
+      <button id="againBtn" class="primary">Rematch 🔁</button>
+      <button id="setupBtn">New players</button>
+    </div>
+    <div id="finalWait" class="status center" hidden>Waiting for the host…</div>
+  </section>
+
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const API = 'https://commons.wikimedia.org/w/api.php';
+const MIN = 1826, MAX = 2026;
+const PREFIX = 'timeframe6-';   // peer-id prefix → short shareable room codes
+const ROUND_TIME = 45;          // seconds per online round
+const MAX_ONLINE = 6;
+
+const state = { players:[], rounds:5, round:1, turn:0, photo:null, hintLevel:0, hintCost:0, results:[] };
+let prefetchPromise = null;
+
+/* online state */
+const net = {
+  mode:'local',            // 'local' | 'host' | 'guest'
+  peer:null, conn:null,    // guest: connection to host
+  conns:new Map(),         // host: guestId → connection
+  code:'', myId:'host', myName:'You',
+  players:[],              // [{id,name,score,connected}]
+  started:false, roundDone:true,
+  rounds:5, round:0,
+  timerId:null, timeLeft:ROUND_TIME,
+  guesses:new Map(), hintCosts:new Map(), hintLevels:new Map(), locks:new Set(),
+  locked:false
+};
+
+/* ---------- helpers ---------- */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const stripHtml = s => String(s).replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();
+const cleanTitle = t => t.replace(/^File:/,'').replace(/\.[A-Za-z0-9]+$/,'').replace(/_/g,' ');
+const clamp = v => Math.max(MIN, Math.min(MAX, isNaN(v) ? 1950 : Math.round(v)));
+const ordinal = n => { const s=['th','st','nd','rd'], v=n%100; return n + (s[(v-20)%10] || s[v] || s[0]); };
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+function show(id){ ['setup','lobby','game','reveal','final'].forEach(s => { $(s).hidden = (s !== id); }); window.scrollTo(0,0); }
+const isOnline = () => net.mode === 'host' || net.mode === 'guest';
+
+function computeHint(level, y){
+  return level === 1
+    ? { text:'🕰️ It’s from the <b>' + ordinal(Math.floor(y/100)+1) + ' century</b>.', cost:100 }
+    : { text:'📆 More precisely: the <b>' + (Math.floor(y/10)*10) + 's</b>.', cost:150 };
+}
+function genCode(){
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let c = ''; for(let i=0;i<5;i++) c += A[Math.floor(Math.random()*A.length)];
+  return c;
+}
+
+/* ---------- setup screen / mode switching ---------- */
+document.querySelectorAll('.modeSel').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.modeSel').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    const m = btn.dataset.mode;
+    $('localPanel').hidden = m !== 'local';
+    $('hostPanel').hidden  = m !== 'host';
+    $('joinPanel').hidden  = m !== 'join';
+    $('hostStatus').textContent = ''; $('joinStatus').textContent = '';
+    $('hostStatus').classList.remove('err'); $('joinStatus').classList.remove('err');
+  };
+});
+
+function buildNameInputs(){
+  const n = +$('playerCount').value, box = $('nameInputs'); box.innerHTML = '';
+  for(let i=1;i<=n;i++){
+    const inp = document.createElement('input');
+    inp.className = 'nameInp'; inp.type = 'text'; inp.maxLength = 14;
+    inp.placeholder = 'Player ' + i; box.appendChild(inp);
+  }
+}
+$('playerCount').addEventListener('change', buildNameInputs);
+buildNameInputs();
+
+$('startBtn').onclick = () => {
+  net.mode = 'local';
+  state.players = [...document.querySelectorAll('.nameInp')]
+    .map((inp,i)=>({ name: inp.value.trim() || ('Player '+(i+1)), score:0 }));
+  state.rounds = +$('roundCount').value;
+  state.round = 1;
+  prefetchPromise = null;
+  startLocalRound();
+};
+
+/* ============ NETWORKING (PeerJS / WebRTC) ============ */
+function peerAvailable(){
+  if(typeof Peer === 'undefined'){ return false; }
+  return true;
+}
+function broadcast(data){
+  net.conns.forEach(c => { try{ c.send(data); }catch(e){} });
+}
+function sendHost(data){
+  if(net.conn && net.conn.open){ try{ net.conn.send(data); }catch(e){} }
+}
+
+/* ----- HOST ----- */
+$('createRoomBtn').onclick = () => {
+  if(!peerAvailable()){ setStatus('hostStatus','Online library failed to load. Check your connection.',true); return; }
+  net.myName = $('hostName').value.trim() || 'Host';
+  $('createRoomBtn').disabled = true;
+  setStatus('hostStatus','Creating room…');
+  openHostPeer();
+};
+function openHostPeer(){
+  const code = genCode();
+  const peer = new Peer(PREFIX + code);
+  net.peer = peer;
+  let opened = false;
+  peer.on('open', () => {
+    opened = true;
+    net.code = code; net.mode = 'host'; net.myId = 'host';
+    net.players = [{ id:'host', name:net.myName, score:0, connected:true }];
+    net.started = false;
+    $('createRoomBtn').disabled = false;
+    showLobby(true);
+  });
+  peer.on('connection', conn => {
+    conn.on('open', () => {
+      if(net.started){ try{conn.send({t:'reject',reason:'Game already in progress'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},400); return; }
+      if(net.players.length >= MAX_ONLINE){ try{conn.send({t:'reject',reason:'Room is full'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},400); return; }
+      net.conns.set(conn.peer, conn);
+      conn.on('data', d => hostReceive(conn, d));
+      conn.on('close', () => hostPlayerLeft(conn.peer));
+      conn.on('error', () => hostPlayerLeft(conn.peer));
+    });
+  });
+  peer.on('disconnected', () => { try{ peer.reconnect(); }catch(e){} });
+  peer.on('error', err => {
+    if(err.type === 'unavailable-id' && !opened){ try{peer.destroy();}catch(e){} openHostPeer(); return; }
+    $('createRoomBtn').disabled = false;
+    setStatus('hostStatus','Connection error (' + err.type + '). Try again.',true);
+  });
+}
+function hostReceive(conn, d){
+  if(!d || !d.t) return;
+  if(d.t === 'hello'){
+    if(net.players.some(p => p.id === conn.peer)) return;
+    const name = String(d.name||'').slice(0,14) || 'Guest';
+    net.players.push({ id:conn.peer, name, score:0, connected:true });
+    conn.send({ t:'welcome', id:conn.peer });
+    broadcastLobby();
+  }
+  else if(d.t === 'guess' && net.started && !net.roundDone){
+    if(net.guesses.has(conn.peer)) return;
+    const g = clamp(+d.value);
+    net.guesses.set(conn.peer, g);
+    net.locks.add(conn.peer);
+    broadcast({ t:'locks', ids:[...net.locks] });
+    hostCheckAllLocked();
+  }
+  else if(d.t === 'hint' && net.started && !net.roundDone && state.photo && state.photo.year != null){
+    const lvl = net.hintLevels.get(conn.peer) || 0;
+    if(lvl >= 2) return;
+    const h = computeHint(lvl+1, state.photo.year);
+    net.hintLevels.set(conn.peer, lvl+1);
+    net.hintCosts.set(conn.peer, (net.hintCosts.get(conn.peer)||0) + h.cost);
+    try{ conn.send({ t:'hintRes', level:lvl+1, text:h.text }); }catch(e){}
+  }
+}
+function hostPlayerLeft(id){
+  if(!net.conns.has(id)) return;
+  net.conns.delete(id);
+  const p = net.players.find(p => p.id === id);
+  if(p) p.connected = false;
+  broadcastLobby();
+  if(net.started && !net.roundDone){
+    broadcast({ t:'locks', ids:[...net.locks] });
+    hostCheckAllLocked();
+  }
+}
+function broadcastLobby(){
+  broadcast({ t:'lobby', players: net.players.map(p => ({ name:p.name, connected:p.connected, isHost:p.id==='host' })) });
+}
+function hostCheckAllLocked(){
+  const active = net.players.filter(p => p.connected);
+  if(active.every(p => net.guesses.has(p.id))) hostFinishRound();
+}
+
+/* ----- GUEST ----- */
+$('joinBtn').onclick = () => {
+  if(!peerAvailable()){ setStatus('joinStatus','Online library failed to load. Check your connection.',true); return; }
+  const code = $('joinCode').value.trim().toUpperCase();
+  if(code.length < 4){ setStatus('joinStatus','Enter the room code.',true); return; }
+  net.myName = $('joinName').value.trim() || 'Guest';
+  $('joinBtn').disabled = true;
+  setStatus('joinStatus','Connecting to room ' + code + '…');
+  const peer = new Peer();
+  net.peer = peer;
+  peer.on('open', () => {
+    const conn = peer.connect(PREFIX + code, { reliable:true });
+    net.conn = conn;
+    const timeout = setTimeout(() => {
+      if(net.mode !== 'guest' || !net.conn || !net.conn.open){
+        setStatus('joinStatus','Room not found. Check the code.',true);
+        $('joinBtn').disabled = false; cleanupNet();
+      }
+    }, 8000);
+    conn.on('open', () => {
+      clearTimeout(timeout);
+      net.mode = 'guest'; net.code = code;
+      conn.send({ t:'hello', name: net.myName });
+      setStatus('joinStatus','Connected! Waiting for the lobby…');
+    });
+    conn.on('data', guestReceive);
+    conn.on('close', () => {
+      if(net.mode === 'guest' && net.started){
+        cleanupNet(); show('setup');
+        setStatus('joinStatus','The host closed the room.',true);
+      }
+    });
+  });
+  peer.on('error', err => {
+    $('joinBtn').disabled = false;
+    if(err.type === 'peer-unavailable') setStatus('joinStatus','Room not found. Check the code.',true);
+    else setStatus('joinStatus','Connection error (' + err.type + ').',true);
+  });
+};
+function guestReceive(d){
+  if(!d || !d.t) return;
+  switch(d.t){
+    case 'reject':
+      setStatus('joinStatus', d.reason + '.', true);
+      $('joinBtn').disabled = false; cleanupNet(); break;
+    case 'welcome':
+      net.myId = d.id; $('joinBtn').disabled = false; break;
+    case 'lobby':
+      showLobby(false, d.players); break;
+    case 'start':
+      net.started = true; net.rounds = d.rounds;
+      net.players = d.players.map(p => ({ ...p, score:0, connected:true }));
+      break;
+    case 'round':
+      state.photo = { url:d.photo.url, title:d.photo.title, artist:d.photo.artist, link:d.photo.link, exact:d.photo.exact||'' };
+      net.round = d.round; net.rounds = d.rounds || net.rounds;
+      net.locks = new Set(); net.locked = false;
+      showOnlineRound(d.time || ROUND_TIME);
+      break;
+    case 'locks':
+      net.locks = new Set(d.ids); renderLockChips(); break;
+    case 'tick':
+      net.timeLeft = d.n; updateTimerUI(); break;
+    case 'hintRes':
+      $('hintBox').innerHTML += (state.hintLevel > 0 ? '<br>' : '') + d.text;
+      state.hintLevel = d.level;
+      if(state.hintLevel >= 2){ $('hintBtn').disabled = true; }
+      else { $('hintBtn').textContent = 'Hint: decade (−150)'; }
+      break;
+    case 'reveal':
+      net.roundDone = true;
+      renderReveal(d, false, d.isLast);
+      break;
+    case 'final':
+      showFinalOnline(d.standings); break;
+  }
+}
+function setStatus(id, msg, isErr){
+  const el = $(id); el.textContent = msg; el.classList.toggle('err', !!isErr);
+}
+function cleanupNet(){
+  clearInterval(net.timerId);
+  try{ net.conns.forEach(c => c.close()); }catch(e){}
+  try{ net.conn && net.conn.close(); }catch(e){}
+  try{ net.peer && net.peer.destroy(); }catch(e){}
+  net.conns.clear(); net.conn = null; net.peer = null;
+  net.mode = 'local'; net.started = false; net.players = []; net.code = '';
+  prefetchPromise = null;
+}
+$('leaveBtn').onclick = () => { cleanupNet(); show('setup'); };
+
+/* ----- LOBBY UI ----- */
+function showLobby(asHost, guestPlayers){
+  show('lobby');
+  $('lobbyCode').textContent = net.code;
+  $('lobbyHostControls').hidden = !asHost;
+  $('lobbyGuestStatus').hidden = asHost;
+  const list = asHost
+    ? net.players.map(p => ({ name:p.name, connected:p.connected, isHost:p.id==='host' }))
+    : (guestPlayers || []);
+  $('lobbyPlayers').innerHTML = list.map(p =>
+    '<span class="chip' + (p.connected ? '' : ' off') + '">' +
+    (p.isHost ? '👑 ' : '') + esc(p.name) + (p.connected ? '' : ' (left)') + '</span>').join('');
+}
+$('copyCodeBtn').onclick = async () => {
+  try{ await navigator.clipboard.writeText(net.code); $('copyCodeBtn').textContent = 'Copied! ✓'; }
+  catch(e){ $('copyCodeBtn').textContent = net.code; }
+  setTimeout(() => $('copyCodeBtn').textContent = 'Copy code', 1500);
+};
+$('lobbyStartBtn').onclick = () => {
+  if(net.players.length < 1) return;
+  net.rounds = +$('lobbyRounds').value;
+  net.started = true; net.round = 0;
+  net.players.forEach(p => p.score = 0);
+  broadcast({ t:'start', rounds:net.rounds, players: net.players.map(p => ({ id:p.id, name:p.name, connected:p.connected })) });
+  hostNextRound();
+};
+
+/* ============ PHOTO FETCHING (Wikimedia Commons) ============ */
+async function jget(params){
+  const q = new URLSearchParams(Object.assign({ action:'query', format:'json', origin:'*' }, params));
+  const res = await fetch(API + '?' + q.toString());
+  if(!res.ok) throw new Error('API error ' + res.status);
+  return res.json();
+}
+const preload = src => new Promise(res => { const im = new Image(); im.onload = ()=>res(true); im.onerror = ()=>res(false); im.src = src; });
+const randYear = () => 1850 + Math.round(Math.pow(Math.random(), 0.9) * (2025 - 1850));
+
+async function fetchPhoto(){
+  let lastErr = null;
+  for(let attempt=0; attempt<8; attempt++){
+    const year = randYear();
+    let members = [];
+    try{
+      const data = await jget({ list:'categorymembers', cmtitle:'Category:' + year + ' photographs', cmtype:'file', cmlimit:'50' });
+      members = (data.query && data.query.categorymembers) || [];
+    }catch(e){ lastErr = e; continue; }
+    if(!members.length) continue;
+    shuffle(members);
+    let pages = [];
+    try{
+      const ii = await jget({
+        prop:'imageinfo',
+        titles: members.slice(0,10).map(m => m.title).join('|'),
+        iiprop:'url|mime|size|extmetadata', iiurlwidth:'1200'
+      });
+      pages = Object.values((ii.query && ii.query.pages) || {});
+    }catch(e){ lastErr = e; continue; }
+    shuffle(pages);
+    for(const page of pages){
+      if(page.missing !== undefined) continue;
+      const info = page.imageinfo && page.imageinfo[0];
+      if(!info || !/^image\/(jpeg|png)$/.test(info.mime || '')) continue;
+      if(!info.thumburl || (info.width||0) < 400 || (info.height||0) < 300) continue;
+      if(!(await preload(info.thumburl))) continue;
+      const meta = info.extmetadata || {};
+      const dt = stripHtml((meta.DateTimeOriginal && meta.DateTimeOriginal.value) || '');
+      const mYear = parseInt((dt.match(/(?:18|19|20)\d{2}/) || [null])[0], 10);
+      return {
+        year, url:info.thumburl, link:info.descriptionurl || '',
+        title:cleanTitle(page.title || ''),
+        artist:stripHtml((meta.Artist && meta.Artist.value) || ''),
+        exact:(mYear === year && dt) ? dt : ''
+      };
+    }
+  }
+  throw lastErr || new Error('No suitable photo found');
+}
+async function getPhoto(){
+  let photo = null;
+  const p = prefetchPromise; prefetchPromise = null;
+  if(p){ try{ photo = await p; }catch(e){ photo = null; } }
+  if(!photo) photo = await fetchPhoto();
+  return photo;
+}
+
+/* ============ LOCAL PASS-&-PLAY ============ */
+async function startLocalRound(){
+  show('game');
+  state.turn = 0; state.results = []; state.photo = null;
+  $('timerWrap').hidden = true; $('lockList').hidden = true;
+  $('roundLabel').textContent = 'Round ' + state.round + ' / ' + state.rounds;
+  renderLocalChips();
+  setGameLoading(true);
+  try{ state.photo = await getPhoto(); }
+  catch(e){ setGameLoading(false); $('errOverlay').hidden = false; $('turnLabel').textContent = 'Something went wrong.'; return; }
+  setGameLoading(false);
+  $('photo').src = state.photo.url;
+  $('photo').hidden = false;
+  beginTurn();
+}
+$('retryBtn').onclick = () => { if(isOnline()) hostNextRound(); else startLocalRound(); };
+
+function setGameLoading(loading){
+  $('photo').hidden = true;
+  $('errOverlay').hidden = true;
+  $('passOverlay').hidden = true;
+  $('loader').hidden = !loading;
+  $('guessBtn').disabled = loading;
+  $('hintBtn').disabled = loading;
+  $('hintBox').innerHTML = '';
+  if(loading) $('turnLabel').textContent = 'Finding a photo…';
+}
+function renderLocalChips(){
+  $('scores').innerHTML = state.players
+    .map(p => '<span class="chip">' + esc(p.name) + ' <b>' + p.score + '</b></span>').join('');
+}
+function beginTurn(){
+  if(!state.photo) return;
+  state.hintLevel = 0; state.hintCost = 0;
+  $('hintBox').innerHTML = '';
+  const hb = $('hintBtn'); hb.disabled = false; hb.textContent = 'Hint: century (−100)';
+  $('guessBtn').disabled = false;
+  $('slider').value = 1950; $('yearInput').value = 1950;
+  $('turnLabel').innerHTML = '<span>' + esc(state.players[state.turn].name) + '</span>, when was this taken?';
+  $('passOverlay').hidden = true;
+  $('errOverlay').hidden = true;
+}
+
+/* ============ ONLINE ROUNDS ============ */
+async function hostNextRound(){
+  net.round++;
+  net.roundDone = false;
+  net.guesses.clear(); net.hintCosts.clear(); net.hintLevels.clear(); net.locks = new Set();
+  net.locked = false;
+  clearInterval(net.timerId);
+  show('game');
+  $('timerWrap').hidden = false; $('lockList').hidden = false;
+  $('roundLabel').textContent = 'Round ' + net.round + ' / ' + net.rounds + ' · Room ' + net.code;
+  renderOnlineChips();
+  setGameLoading(true);
+  let photo = null;
+  try{ photo = await getPhoto(); }catch(e){ photo = null; }
+  if(!photo){
+    setGameLoading(false); $('errOverlay').hidden = false;
+    $('turnLabel').textContent = 'Something went wrong.';
+    return;
+  }
+  state.photo = photo;
+  setGameLoading(false);
+  broadcast({ t:'round', round:net.round, rounds:net.rounds, time:ROUND_TIME,
+    photo:{ url:photo.url, title:photo.title, artist:photo.artist, link:photo.link } }); // year NOT sent
+  showOnlineRound(ROUND_TIME);
+  startHostTimer();
+}
+function showOnlineRound(time){
+  $('timerWrap').hidden = false; $('lockList').hidden = false;
+  $('roundLabel').textContent = 'Round ' + net.round + ' / ' + net.rounds + (net.mode==='host' ? ' · Room ' + net.code : '');
+  renderOnlineChips();
+  $('photo').src = state.photo.url;
+  $('photo').hidden = false;
+  $('loader').hidden = true; $('errOverlay').hidden = true; $('passOverlay').hidden = true;
+  state.hintLevel = 0; state.hintCost = 0; net.locked = false;
+  $('hintBox').innerHTML = '';
+  $('hintBtn').disabled = false; $('hintBtn').textContent = 'Hint: century (−100)';
+  $('guessBtn').disabled = false;
+  $('slider').value = 1950; $('yearInput').value = 1950;
+  $('turnLabel').innerHTML = '<span>' + esc(net.myName) + '</span>, lock in your year!';
+  net.timeLeft = time; updateTimerUI();
+  if(net.mode === 'guest') net.locks = new Set();
+  renderLockChips();
+}
+function renderOnlineChips(){
+  $('scores').innerHTML = net.players
+    .map(p => '<span class="chip' + (p.connected===false ? ' off' : '') + '">' + esc(p.name) + ' <b>' + p.score + '</b></span>').join('');
+}
+function renderLockChips(){
+  const myLocked = net.locks.has(net.myId) || (net.mode==='host' && net.locks.has('host'));
+  $('lockList').innerHTML = net.players.map(p => {
+    const locked = net.locks.has(p.id) || (p.id === net.myId && net.locked) || (net.mode==='host' && p.id==='host' && net.locked);
+    return '<span class="chip' + (locked ? ' locked' : '') + (p.connected===false ? ' off' : '') + '">' +
+      esc(p.name) + ' <b>' + (locked ? '✓' : '…') + '</b></span>';
+  }).join('');
+  if(myLocked || net.locked) $('lockList').innerHTML = $('lockList').innerHTML; // no-op, keeps DOM simple
+}
+function updateTimerUI(){
+  const pct = Math.max(0, Math.min(100, (net.timeLeft / ROUND_TIME) * 100));
+  $('timerBar').style.width = pct + '%';
+  $('timerBar').classList.toggle('warn', net.timeLeft <= 10);
+  $('timeLeft').textContent = Math.max(0, net.timeLeft) + 's';
+}
+function startHostTimer(){
+  net.timeLeft = ROUND_TIME; updateTimerUI();
+  clearInterval(net.timerId);
+  net.timerId = setInterval(() => {
+    net.timeLeft--;
+    broadcast({ t:'tick', n:net.timeLeft });
+    updateTimerUI();
+    if(net.timeLeft <= 0){ clearInterval(net.timerId); hostFinishRound(); }
+  }, 1000);
+}
+function submitOnlineGuess(g){
+  if(net.locked) return;
+  net.locked = true;
+  $('guessBtn').disabled = true; $('hintBtn').disabled = true;
+  $('turnLabel').innerHTML = 'Locked in ✓ — <span>waiting for the others…</span>';
+  if(net.mode === 'host'){
+    net.guesses.set('host', g);
+    net.locks.add('host');
+    broadcast({ t:'locks', ids:[...net.locks] });
+    renderLockChips();
+    hostCheckAllLocked();
+  }else{
+    sendHost({ t:'guess', value:g });
+    renderLockChips();
+  }
+}
+function hostFinishRound(){
+  if(net.roundDone) return;
+  net.roundDone = true;
+  clearInterval(net.timerId);
+  const results = net.players.map(p => {
+    const g = net.guesses.has(p.id) ? net.guesses.get(p.id) : null;
+    const cost = net.hintCosts.get(p.id) || 0;
+    let diff = null, pts = 0;
+    if(g != null){
+      diff = Math.abs(g - state.photo.year);
+      const base = diff === 0 ? 1000 : Math.max(0, 500 - 5*diff);
+      pts = Math.max(0, base - cost);
+    }
+    p.score += pts;
+    return { name:p.name, guess:g, diff, pts };
+  });
+  const isLast = net.round >= net.rounds;
+  const payload = { year:state.photo.year, exact:state.photo.exact, results,
+    scores:net.players.map(p => ({ name:p.name, score:p.score })), isLast };
+  broadcast({ t:'reveal', ...payload });
+  renderReveal(payload, true, isLast);
+  if(!isLast) prefetchPromise = fetchPhoto().catch(()=>null); // warm up next round
+}
+
+/* ============ SHARED GUESS CONTROLS ============ */
+$('slider').addEventListener('input', () => { $('yearInput').value = $('slider').value; });
+$('yearInput').addEventListener('input', () => {
+  const v = parseInt($('yearInput').value, 10);
+  if(!isNaN(v)) $('slider').value = clamp(v);
+});
+$('yearInput').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('guessBtn').click(); } });
+function currentGuessValue(){
+  const raw = String($('yearInput').value).trim();
+  const g = clamp(raw === '' ? +$('slider').value : +raw);
+  $('yearInput').value = g; $('slider').value = g;
+  return g;
+}
+$('guessBtn').onclick = () => {
+  if(!state.photo || $('guessBtn').disabled) return;
+  const g = currentGuessValue();
+  if(isOnline()){ submitOnlineGuess(g); return; }
+  /* local pass-&-play */
+  const p = state.players[state.turn];
+  const diff = Math.abs(g - state.photo.year);
+  const base = diff === 0 ? 1000 : Math.max(0, 500 - 5*diff);
+  const pts  = Math.max(0, base - state.hintCost);
+  p.score += pts;
+  state.results.push({ name:p.name, guess:g, diff, pts });
+  renderLocalChips();
+  $('guessBtn').disabled = true; $('hintBtn').disabled = true;
+  state.turn++;
+  if(state.turn < state.players.length){
+    $('passName').textContent = state.players[state.turn].name;
+    $('passOverlay').hidden = false;
+  }else{
+    const leader = [...state.players].sort((a,b)=>b.score-a.score)[0];
+    renderReveal({
+      year:state.photo.year, exact:state.photo.exact, results:state.results,
+      scores:state.players.map(p=>({name:p.name,score:p.score})),
+      isLast: state.round >= state.rounds, leaderName: leader.name
+    }, true, state.round >= state.rounds);
+  }
+};
+$('readyBtn').onclick = () => beginTurn();
+
+$('hintBtn').onclick = () => {
+  if(!state.photo || $('hintBtn').disabled) return;
+  if(net.mode === 'guest'){
+    if(state.hintLevel >= 2 || !state.photo) return;
+    sendHost({ t:'hint' }); // host computes it — the year never touches the guest
+    $('hintBtn').disabled = true; // re-enabled by hintRes if another level remains
+    return;
+  }
+  if(state.hintLevel >= 2 || state.photo.year == null) return;
+  const h = computeHint(state.hintLevel + 1, state.photo.year);
+  state.hintLevel++; state.hintCost += h.cost;
+  $('hintBox').innerHTML += (state.hintLevel > 1 ? '<br>' : '') + h.text;
+  if(state.hintLevel >= 2) $('hintBtn').disabled = true;
+  else $('hintBtn').textContent = 'Hint: decade (−150)';
+};
+
+/* ============ REVEAL / FINAL ============ */
+function msgFor(d){
+  return d===0 ? 'PERFECT! Time-traveller confirmed 🎯'
+    : d<=2  ? 'Insane eye! 🤯'
+    : d<=5  ? 'Great call 🔥'
+    : d<=10 ? 'Pretty close 👍'
+    : d<=25 ? 'In the ballpark 🙂'
+    : d<=50 ? 'Hmm… not quite 😬'
+    : d<=100? 'Way off 😅'
+    : 'Basically a different era 🙈';
+}
+function renderReveal(data, canAdvance, isLast){
+  show('reveal');
+  $('photo2').src = state.photo.url;
+  $('revealYear').textContent = '📸 Taken in ' + data.year;
+  const bits = [];
+  if(data.exact)          bits.push('📅 ' + esc(data.exact));
+  if(state.photo.artist)  bits.push('📷 ' + esc(state.photo.artist));
+  if(state.photo.link)    bits.push('<a href="' + state.photo.link + '" target="_blank" rel="noopener">Source: “' + esc(state.photo.title) + '”</a>');
+  $('revealMeta').innerHTML = bits.join(' &nbsp;·&nbsp; ');
+  $('revealRows').innerHTML = data.results.map(r => {
+    if(r.guess == null){
+      return '<div class="rrow"><b>' + esc(r.name) + '</b> <span class="verdict" style="width:auto">didn’t lock in</span><span class="pts">+0</span></div>';
+    }
+    const delta = r.diff === 0 ? 'exact!'
+      : r.diff + ' year' + (r.diff===1?'':'s') + (r.guess > data.year ? ' late' : ' early');
+    return '<div class="rrow"><b>' + esc(r.name) + '</b> guessed <b>' + r.guess + '</b>' +
+           '<span class="pts">+' + r.pts + '</span>' +
+           '<span class="verdict">' + delta + ' — ' + msgFor(r.diff) + '</span></div>';
+  }).join('');
+  const sorted = [...data.scores].sort((a,b)=>b.score-a.score);
+  $('leaderLine').innerHTML = 'Leader: <b>' + esc(sorted[0].name) + '</b> (' + sorted[0].score + ' pts)';
+
+  const hostOrLocal = canAdvance;
+  $('nextBtn').hidden = !hostOrLocal;
+  $('revealWait').hidden = hostOrLocal;
+  if(hostOrLocal){
+    $('nextBtn').textContent = isLast ? 'Final results 🏁' : 'Next round →';
+    $('nextBtn').onclick = () => {
+      if(isLast){
+        if(isOnline()){
+          const standings = net.players.map(p => ({ name:p.name, score:p.score }))
+            .sort((a,b)=>b.score-a.score);
+          broadcast({ t:'final', standings });
+          showFinalOnline(standings);
+        }else{
+          showFinalLocal();
+        }
+      }else{
+        if(net.mode === 'host') hostNextRound();
+        else { state.round++; startLocalRound(); }
+      }
+    };
+  }
+}
+function buildPodium(list){
+  const medals = ['🥇','🥈','🥉'];
+  return [...list].sort((a,b)=>b.score-a.score).map((p,i) =>
+    '<div class="prow"><span class="medal">' + (medals[i] || (i+1) + '.') + '</span>' +
+    '<span>' + esc(p.name) + '</span><span class="pts">' + p.score + '</span></div>').join('');
+}
+function showFinalLocal(){
+  show('final');
+  $('podium').innerHTML = buildPodium(state.players);
+  $('againBtn').hidden = false; $('setupBtn').hidden = false; $('setupBtn').textContent = 'New players';
+  $('finalWait').hidden = true;
+}
+function showFinalOnline(standings){
+  show('final');
+  $('podium').innerHTML = buildPodium(standings);
+  const asHost = net.mode === 'host';
+  $('againBtn').hidden = !asHost;
+  $('setupBtn').hidden = false;
+  $('setupBtn').textContent = 'Leave room';
+  $('finalWait').hidden = asHost;
+}
+$('againBtn').onclick = () => {
+  if(net.mode === 'host'){
+    net.round = 0; net.started = true;
+    net.players.forEach(p => { p.score = 0; p.connected = p.connected !== false; });
+    broadcast({ t:'start', rounds:net.rounds, players: net.players.map(p => ({ id:p.id, name:p.name, connected:p.connected })) });
+    hostNextRound();
+  }else{
+    state.players.forEach(p => p.score = 0);
+    state.round = 1; prefetchPromise = null;
+    startLocalRound();
+  }
+};
+$('setupBtn').onclick = () => {
+  if(isOnline()){
+    broadcast({ t:'final', standings: net.players.map(p=>({name:p.name,score:p.score})) }); // let guests leave final screen cleanly
+    cleanupNet();
+  }
+  show('setup');
+};
+
+/* keep screen list in sync for show() */
+})();
+</script>
+</body>
+</html>
